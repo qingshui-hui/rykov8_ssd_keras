@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  devcontainer:
+    image: saiki987/keras_ssd:1.15
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
