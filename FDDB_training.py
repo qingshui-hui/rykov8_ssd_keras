@@ -1,27 +1,16 @@
 import cv2
 import keras
 from keras.applications.imagenet_utils import preprocess_input
-from keras.backend.tensorflow_backend import set_session
-from keras.models import Model
-from keras.preprocessing import image
-import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 from random import shuffle
 from imageio import imread
-# from scipy.misc import imresize
-from PIL import Image
+from scipy.misc import imresize
 import tensorflow as tf
 from ssd import SSD300
 from ssd_training import MultiboxLoss
 from ssd_utils import BBoxUtility
-from PIL import Image
-from lxml import etree
-from xml.etree import ElementTree
-import math
 import os
-import glob
-# from google.colab.patches import cv2_imshow
 
 os.makedirs('checkpoints', exist_ok=True)#学習途中の重みも保存するためのフォルダ作成
 checkpoints_dir='checkpoints'
@@ -42,9 +31,9 @@ bbox_util = BBoxUtility(NUM_CLASSES, priors)
 # FDDBデータの情報まとめたファイル
 gt = pickle.load(open('FDDB.pkl', 'rb'))
 keys = sorted(gt.keys())
-num_train = int(round(0.8 * len(keys)))
+num_train = 50
 train_keys = keys[:num_train]
-val_keys = keys[num_train:]
+val_keys = keys[num_train:num_train+10]
 num_val = len(val_keys)
 
 class Generator(object):# pkl上にpathも含めているのでpath_prefixは消した
@@ -199,8 +188,8 @@ class Generator(object):# pkl上にpathも含めているのでpath_prefixは消
                 y = self.gt[key].copy()
                 if train and self.do_crop:
                     img, y = self.random_sized_crop(img, y)
-                # img = imresize(img, self.image_size).astype('float32')
-                img = np.array(Image.fromarray(img).resize(self.image_size, resample=2))
+                img = imresize(img, self.image_size).astype('float32')
+                # img = np.array(Image.fromarray(img).resize(self.image_size, resample=2), dtype='float32')
                 # boxの位置は正規化されているから画像をリサイズしても
                 # 教師信号としては問題ない　らしいです
                 if train:
@@ -229,7 +218,10 @@ class Generator(object):# pkl上にpathも含めているのでpath_prefixは消
                     # VGG16では画像をRGBからBGRに変換し、スケーリングせずにImageNetデータセットに対して各カラーチャネルをゼロ中心にします。
                     yield preprocess_input(tmp_inp), tmp_targets
 
-gen = Generator(gt, bbox_util, 16,
+nb_epoch = 2
+batch_size = 5
+
+gen = Generator(gt, bbox_util, batch_size,
                 train_keys, val_keys,
                 (input_shape[0], input_shape[1]), do_crop=False)
 
@@ -262,8 +254,6 @@ optim = keras.optimizers.Adam(lr=base_lr)
 # neg_pos_ratio:ハードネガティブマイニング負例と正例の最大の比
 model.compile(optimizer=optim,
               loss=MultiboxLoss(NUM_CLASSES, neg_pos_ratio=2.0).compute_loss)
-
-nb_epoch = 100
 
 # 学習
 # ミニバッチごとに入力の前処理を行うのでfit_generatorを使う
